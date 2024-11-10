@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Case Registration</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Register a New Case</h1>
+        <form id="caseForm">
+            <label for="patientName">Patient Name:</label>
+            <input type="text" id="patientName" name="patientName" required>
+
+            <label for="patientAge">Patient Age:</label>
+            <input type="number" id="patientAge" name="patientAge" required>
+
+            <label for="patientGender">Patient Gender:</label>
+            <select id="patientGender" name="patientGender" required>
+                <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+            </select>
+
+            <label for="dni">DNI:</label>
+            <input type="text" id="dni" name="dni" required>
+
+            <label for="caseDescription">Case Description:</label>
+            <textarea id="caseDescription" name="caseDescription" rows="4" required></textarea>
+
+            <label for="date">Date of Registration:</label>
+            <input type="date" id="date" name="date" required>
+
+            <button type="submit">Submit Case</button>
+            <a href="../login/login.html" class="login-link">Return to Login</a>
+        </form>
+    </div>
+    <script src="newcase.js"></script>
+</body>
+</html>

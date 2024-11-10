@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Radiologist Workspace</title>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Radiologist Workspace</h1>
+            <input type="text" id="searchInput" placeholder="Search by ID">
+            <button id="addCaseButton" onclick="location.href='../newcase/newcase.html';">Add New Case</button>
+        </header>
+        <main>
+            <div onclick="location.href='../subject/subject.html';" id="caseList" class="case-list">
+                <!-- Cases will be dynamically inserted here -->
+            </div>
+        </main>
+    </div>
+    <script src="workspace.js"></script>
+</body>
+</html>
