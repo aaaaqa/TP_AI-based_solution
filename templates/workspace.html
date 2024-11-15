@@ -10,8 +10,14 @@
     <div class="container">
         <header>
             <h1>Radiologist Workspace</h1>
-            <input type="text" id="searchInput" placeholder="Buscar por ID">
-            <button id="addCaseButton" onclick="location.href='{{ url_for('newcase') }}';">Añadir Nuevo Caso</button>
+            <div class="controls">
+                <input type="text" id="searchInput" placeholder="Buscar por ID">
+                <select id="sortSelect">
+                    <option value="date">Ordenar por Fecha</option>
+                    <option value="urgency">Ordenar por Urgencia</option>
+                </select>
+                <button id="addCaseButton" onclick="location.href='{{ url_for('newcase') }}';">Añadir Nuevo Caso</button>
+            </div>
         </header>
         <main>
             <div id="message"></div>

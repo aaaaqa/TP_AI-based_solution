@@ -1,16 +1,14 @@
-// static/js/workspace.js
-
 document.addEventListener('DOMContentLoaded', function() {
     fetchCases();
 
-    // Agregar evento al campo de búsqueda
+    // Eventos para búsqueda y ordenamiento
     document.getElementById('searchInput').addEventListener('input', handleSearch);
+    document.getElementById('sortSelect').addEventListener('change', handleSort);
 });
 
 let cases = [];
 let filteredCases = [];
 
-// Función para obtener los casos desde la API
 function fetchCases() {
     fetch('/api/get_cases')
         .then(response => response.json())
@@ -29,7 +27,6 @@ function fetchCases() {
         });
 }
 
-// Función para mostrar los casos en la interfaz
 function displayCases(casesToDisplay) {
     const caseListElement = document.getElementById('caseList');
     caseListElement.innerHTML = '';
@@ -53,10 +50,11 @@ function displayCases(casesToDisplay) {
                 <div class="case-id">ID: ${caseItem.id}</div>
                 <div class="case-name">Nombre: ${caseItem.nombre}</div>
                 <div class="case-date">Fecha: ${caseItem.fecha_registro}</div>
+                <div class="case-urgency">Urgencia: ${caseItem.urgencia}</div>
             </div>
         `;
 
-        // Al hacer clic en un caso, redirigir a la página del caso
+        // Evento click para redirigir a la página del caso
         caseDiv.addEventListener('click', function() {
             window.location.href = '/subject?id=' + caseItem.id;
         });
@@ -65,23 +63,35 @@ function displayCases(casesToDisplay) {
     });
 }
 
-// ... (resto del código permanece igual)
-
-// Función para manejar la búsqueda
 function handleSearch(event) {
     const query = event.target.value.toLowerCase();
     filteredCases = cases.filter(caseItem => caseItem.id.toString().includes(query));
-    displayCases(filteredCases);
+    handleSort({ target: document.getElementById('sortSelect') }); // Aplicar ordenamiento actual
 }
 
-// Función para mostrar mensajes al usuario
+function handleSort(event) {
+    const sortBy = event.target.value;
+
+    // Crear una copia de filteredCases para no modificar el arreglo original
+    let casesToSort = [...filteredCases];
+
+    if (sortBy === 'urgency') {
+        const urgencyLevels = { 'Crítico': 4, 'Alto': 3, 'Medio': 2, 'Bajo': 1 };
+        casesToSort.sort((a, b) => urgencyLevels[b.urgencia] - urgencyLevels[a.urgencia]);
+    } else if (sortBy === 'date') {
+        casesToSort.sort((a, b) => new Date(b.fecha_registro) - new Date(a.fecha_registro));
+    }
+
+    displayCases(casesToSort);
+}
+
 function displayMessage(message) {
     const messageDiv = document.getElementById('message');
     messageDiv.textContent = message;
 }
 
-// Función para limpiar el mensaje
 function clearMessage() {
     const messageDiv = document.getElementById('message');
     messageDiv.textContent = '';
 }
+

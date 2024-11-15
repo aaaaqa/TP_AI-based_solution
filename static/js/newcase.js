@@ -6,13 +6,15 @@ document.getElementById('caseForm').addEventListener('submit', function(event) {
     const patientGender = document.getElementById('patientGender').value;
     const dni = document.getElementById('dni').value.trim();
     const caseDescription = document.getElementById('caseDescription').value.trim();
+    const urgency = document.getElementById('urgency').value;
 
     const caseData = {
         nombre: patientName,
         edad: patientAge,
         genero: patientGender,
         dni: dni,
-        descripcion: caseDescription
+        descripcion: caseDescription,
+        urgencia: urgency
     };
 
     fetch('/newcase', {

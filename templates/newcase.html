@@ -29,6 +29,13 @@
 
             <label for="caseDescription">Descripción del Caso:</label>
             <textarea id="caseDescription" name="caseDescription" rows="4" required></textarea>
+            <label for="urgency">Nivel de Urgencia:</label>
+            <select id="urgency" name="urgency" required>
+                <option value="Bajo">Bajo</option>
+                <option value="Medio">Medio</option>
+                <option value="Alto">Alto</option>
+                <option value="Crítico">Crítico</option>
+            </select>
 
             <button type="submit">Enviar Caso</button>
             <a href="{{ url_for('workspace') }}" class="login-link">Regresar al Workspace</a>

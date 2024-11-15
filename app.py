@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import json
-from flask import Flask, jsonify, request, render_template, redirect, url_for, flash, session, g, send_from_directory
+from flask import Flask, jsonify, request, render_template, redirect, url_for, flash, session, g, send_from_directory, make_response
 from flask_sqlalchemy import SQLAlchemy
 from PIL import Image, ImageDraw
 from skimage.filters import gaussian, sobel
@@ -11,6 +11,8 @@ from datetime import datetime
 import bcrypt
 from functools import wraps
 from werkzeug.utils import secure_filename
+import base64
+import shutil
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Necesario para manejar sesiones y mensajes flash
@@ -18,6 +20,7 @@ app.secret_key = 'your_secret_key'  # Necesario para manejar sesiones y mensajes
 # Configuración de la base de datos
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app_database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['ORIGINALS_FOLDER'] = 'static/originals'
 db = SQLAlchemy(app)
 
 # Directorios de almacenamiento
@@ -31,9 +34,10 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['PREPROCESSED_FOLDER'], exist_ok=True)
 os.makedirs(app.config['PREDICTIONS_FOLDER'], exist_ok=True)
 os.makedirs(app.config['RESULTS_FOLDER'], exist_ok=True)
+os.makedirs(app.config['ORIGINALS_FOLDER'], exist_ok=True)
 
 # Carga el modelo YOLO preentrenado con los pesos en 'last.pt'
-model = YOLO('last.pt')
+model = YOLO('best.pt')
 
 # Modelo de Usuario
 class Usuario(db.Model):
@@ -61,11 +65,14 @@ class Paciente(db.Model):
     dni = db.Column(db.String(20), unique=True, nullable=False)
     edad = db.Column(db.Integer, nullable=False)
     genero = db.Column(db.String(10), nullable=True)
-    fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)  # Nuevo campo
+    fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
+    urgencia = db.Column(db.String(10), default='Bajo')  # Nuevo campo
+    
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'))
     
     imagenes = db.relationship('Imagen', backref='paciente', cascade="all, delete-orphan")
     reportes = db.relationship('Reporte', backref='paciente', cascade="all, delete-orphan")
+
 
 # Modelo de Imagen
 class Imagen(db.Model):
@@ -76,7 +83,11 @@ class Imagen(db.Model):
     fecha_subida = db.Column(db.DateTime, default=datetime.utcnow)
     paciente_id = db.Column(db.Integer, db.ForeignKey('pacientes.id'))
     reporte_id = db.Column(db.Integer, db.ForeignKey('reportes.id'), nullable=True)
-    es_principal = db.Column(db.Boolean, default=False)  # Nuevo campo
+    es_principal = db.Column(db.Boolean, default=False)
+    es_original = db.Column(db.Boolean, default=True)  # Nuevo campo
+    copia_original_guardada = db.Column(db.Boolean, default=False)  # Nuevo campo
+    archivo_original_path = db.Column(db.String(200), nullable=True)  # Ruta de la copia original
+
 
 # Modelo de Reporte
 class Reporte(db.Model):
@@ -94,6 +105,7 @@ class AnalisisImagen(db.Model):
     archivo_path = db.Column(db.String(200), nullable=False)
     fecha_analisis = db.Column(db.DateTime, default=datetime.utcnow)
     imagen_original_id = db.Column(db.Integer, db.ForeignKey('imagenes.id'), nullable=False)
+    resultados = db.Column(db.Text, nullable=True)  # Nuevo campo para almacenar los resultados
 
     # Relación con la imagen original
     imagen_original = db.relationship('Imagen', backref='analisis_imagenes')
@@ -208,16 +220,15 @@ def get_cases():
             'nombre': paciente.nombre,
             'dni': paciente.dni,
             'edad': paciente.edad,
-            'fecha_registro': paciente.fecha_registro.strftime('%Y-%m-%d') if paciente.fecha_registro else '',
+            'fecha_registro': paciente.fecha_registro.strftime('%Y-%m-%dT%H:%M:%S') if paciente.fecha_registro else '',
             'imagen_id': imagen_principal.id if imagen_principal else None,
-            'imagen_path': imagen_path
+            'imagen_path': imagen_path,
+            'urgencia': paciente.urgencia  # Incluir nivel de urgencia
         })
     
-    # Si no hay casos, devolver un mensaje
-    if not cases:
-        return jsonify({'cases': [], 'message': 'No hay casos disponibles.'})
-    
+    # Devolver los casos
     return jsonify({'cases': cases})
+
 
 
 @app.route('/newcase', methods=['GET', 'POST'])
@@ -233,6 +244,7 @@ def newcase():
         genero = data.get('genero')
         dni = data.get('dni')
         descripcion = data.get('descripcion')
+        urgencia = data.get('urgencia', 'Bajo')  # Obtener el nivel de urgencia
 
         # Validaciones
         if not nombre or not edad or not dni:
@@ -248,6 +260,7 @@ def newcase():
             edad=int(edad),
             genero=genero,
             dni=dni,
+            urgencia=urgencia,
             usuario_id=session.get('user_id')
         )
 
@@ -266,6 +279,29 @@ def newcase():
         return jsonify({'success': True, 'message': 'Paciente registrado exitosamente'}), 200
     else:
         return render_template('newcase.html')
+
+@app.route('/update_urgency', methods=['POST'])
+@login_required
+def update_urgency():
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': 'No se proporcionaron datos'}), 400
+
+    paciente_id = data.get('paciente_id')
+    urgencia = data.get('urgencia')
+
+    if not paciente_id or not urgencia:
+        return jsonify({'success': False, 'message': 'Faltan datos necesarios'}), 400
+
+    paciente = Paciente.query.filter_by(id=paciente_id, usuario_id=session.get('user_id')).first()
+    if not paciente:
+        return jsonify({'success': False, 'message': 'Paciente no encontrado'}), 404
+
+    # Actualizar el nivel de urgencia
+    paciente.urgencia = urgencia
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Nivel de urgencia actualizado'}), 200
 
 
 @app.route('/subject')
@@ -314,6 +350,139 @@ def set_main_image():
     db.session.commit()
 
     return jsonify({'success': True, 'message': 'Imagen establecida como principal'}), 200
+
+@app.route('/download_report', methods=['GET'])
+@login_required
+def download_report():
+    paciente_id = request.args.get('paciente_id')
+    if not paciente_id:
+        return jsonify({'success': False, 'message': 'No se proporcionó el ID del paciente'}), 400
+
+    # Verificar que el paciente pertenece al usuario actual
+    paciente = Paciente.query.filter_by(id=paciente_id, usuario_id=session.get('user_id')).first()
+    if not paciente:
+        return jsonify({'success': False, 'message': 'Paciente no encontrado o no autorizado'}), 404
+
+    # Obtener los datos del paciente
+    paciente_data = {
+        'id': paciente.id,
+        'nombre': paciente.nombre,
+        'dni': paciente.dni,
+        'edad': paciente.edad,
+        'genero': paciente.genero,
+        'fecha_registro': paciente.fecha_registro.strftime('%Y-%m-%d %H:%M:%S') if paciente.fecha_registro else '',
+        'urgencia': paciente.urgencia,
+    }
+
+    # Obtener los análisis realizados
+    analisis_list = []
+    for imagen in paciente.imagenes:
+        for analisis in imagen.analisis_imagenes:
+            # Cargar los resultados almacenados
+            resultados = json.loads(analisis.resultados) if analisis.resultados else {}
+            analisis_data = {
+                'analisis_id': analisis.id,
+                'fecha_analisis': analisis.fecha_analisis.strftime('%Y-%m-%d %H:%M:%S'),
+                'imagen_original_id': analisis.imagen_original_id,
+                'resultados': resultados
+            }
+            analisis_list.append(analisis_data)
+
+    # Consolidar el informe
+    report_data = {
+        'paciente': paciente_data,
+        'analisis': analisis_list
+    }
+
+    # Convertir el informe a JSON
+    report_json = json.dumps(report_data, indent=4)
+
+    # Preparar la respuesta para descargar el archivo
+    response = make_response(report_json)
+    response.headers['Content-Type'] = 'application/json'
+    response.headers['Content-Disposition'] = f'attachment; filename=Reporte_Paciente_{paciente_id}.json'
+
+    return response
+
+@app.route('/save_edited_image', methods=['POST'])
+@login_required
+def save_edited_image():
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': 'No se proporcionaron datos'}), 400
+
+    image_data = data.get('image_data')
+    image_id = data.get('image_id')
+
+    if not image_data or not image_id:
+        return jsonify({'success': False, 'message': 'Datos incompletos'}), 400
+
+    # Obtener la imagen y verificar permisos
+    imagen = Imagen.query.get(image_id)
+    if not imagen:
+        return jsonify({'success': False, 'message': 'Imagen no encontrada'}), 404
+
+    paciente = Paciente.query.filter_by(id=imagen.paciente_id, usuario_id=session.get('user_id')).first()
+    if not paciente:
+        return jsonify({'success': False, 'message': 'No tiene permiso para modificar esta imagen'}), 403
+
+    # Verificar que es una imagen original (no generada después del análisis)
+    if not imagen.es_original:
+        return jsonify({'success': False, 'message': 'Solo se pueden editar imágenes originales'}), 400
+
+    # Si es la primera vez que se edita, hacer una copia de la imagen original
+    if not imagen.copia_original_guardada:
+        original_filename = os.path.basename(imagen.archivo_path)
+        original_copy_filename = f"original_{original_filename}"
+        original_copy_path = os.path.join(app.config['ORIGINALS_FOLDER'], original_copy_filename)
+
+        # Copiar la imagen original
+        shutil.copy(imagen.archivo_path, original_copy_path)
+
+        # Marcar que se ha guardado la copia
+        imagen.copia_original_guardada = True
+        imagen.archivo_original_path = original_copy_path
+        db.session.commit()
+
+    # Guardar la imagen editada
+    image_data = image_data.replace('data:image/png;base64,', '')
+    image_bytes = base64.b64decode(image_data)
+
+    edited_image_path = imagen.archivo_path  # Sobrescribir la imagen actual
+    with open(edited_image_path, 'wb') as f:
+        f.write(image_bytes)
+
+    return jsonify({'success': True, 'message': 'Imagen guardada exitosamente'}), 200
+
+@app.route('/restore_original_image', methods=['POST'])
+@login_required
+def restore_original_image():
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': 'No se proporcionaron datos'}), 400
+
+    image_id = data.get('image_id')
+
+    if not image_id:
+        return jsonify({'success': False, 'message': 'Datos incompletos'}), 400
+
+    # Obtener la imagen y verificar permisos
+    imagen = Imagen.query.get(image_id)
+    if not imagen:
+        return jsonify({'success': False, 'message': 'Imagen no encontrada'}), 404
+
+    paciente = Paciente.query.filter_by(id=imagen.paciente_id, usuario_id=session.get('user_id')).first()
+    if not paciente:
+        return jsonify({'success': False, 'message': 'No tiene permiso para modificar esta imagen'}), 403
+
+    # Verificar que existe una copia de la imagen original
+    if not imagen.copia_original_guardada or not imagen.archivo_original_path:
+        return jsonify({'success': False, 'message': 'No existe una copia de la imagen original'}), 400
+
+    # Restaurar la imagen original
+    shutil.copy(imagen.archivo_original_path, imagen.archivo_path)
+
+    return jsonify({'success': True, 'message': 'Imagen restaurada exitosamente'}), 200
 
 
 # Ruta para cerrar sesión
@@ -558,21 +727,21 @@ def analyze_images():
         prediction_image_path = os.path.join(app.config['PREDICTIONS_FOLDER'], prediction_image_filename)
         image.save(prediction_image_path)
 
-        # Guardar los resultados en formato JSON
-        result_json_path = os.path.join(app.config['RESULTS_FOLDER'], f"{os.path.splitext(preprocessed_file)[0]}.json")
-        with open(result_json_path, 'w') as json_file:
-            json.dump({"predictions": predictions}, json_file, indent=4)
+        # Guardar los resultados en formato JSON en el campo 'resultados' del modelo
+        resultados_json = json.dumps({"predictions": predictions})
 
         # Guardar la imagen analizada en la base de datos
         analisis_imagen = AnalisisImagen(
             archivo_path=prediction_image_path,
-            imagen_original_id=imagen.id
+            imagen_original_id=imagen.id,
+            resultados=resultados_json
         )
         db.session.add(analisis_imagen)
         db.session.commit()
 
         results.append({
             'imagen_id': imagen.id,
+            'analisis_id': analisis_imagen.id,
             'prediction_image_url': url_for('serve_predictions', filename=prediction_image_filename),
             'predictions': predictions
         })
@@ -599,21 +768,24 @@ def get_patient_images():
         analisis_imagenes = []
         for analisis in imagen.analisis_imagenes:
             analisis_image_url = url_for('serve_predictions', filename=os.path.basename(analisis.archivo_path))
+            # Cargar los resultados almacenados
+            resultados = json.loads(analisis.resultados) if analisis.resultados else {}
             analisis_imagenes.append({
                 'id': analisis.id,
                 'url': analisis_image_url,
-                'fecha_analisis': analisis.fecha_analisis.strftime('%Y-%m-%d %H:%M:%S')
+                'fecha_analisis': analisis.fecha_analisis.strftime('%Y-%m-%d %H:%M:%S'),
+                'resultados': resultados  # Incluimos los resultados detallados
             })
 
         images.append({
             'id': imagen.id,
-            'url': original_image_url,
+            'url': url_for('serve_uploads', filename=os.path.basename(imagen.archivo_path)),
             'es_principal': imagen.es_principal,
+            'es_original': imagen.es_original,
             'analisis_imagenes': analisis_imagenes
         })
 
     return jsonify({'success': True, 'images': images})
-
 
 
 
