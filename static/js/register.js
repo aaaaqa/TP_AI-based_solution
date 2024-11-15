@@ -7,6 +7,7 @@ document.getElementById('registrationForm').addEventListener('submit', function(
     const username = document.getElementById('username').value.trim();
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
+    const notify = document.getElementById('notify').checked;
 
     // Validar que todos los campos estén completos
     if (!username || !email || !password) {
@@ -17,7 +18,8 @@ document.getElementById('registrationForm').addEventListener('submit', function(
     const userData = {
         username: username,
         email: email,
-        password: password
+        password: password,
+        notify: notify
     };
 
     fetch('/register', {
