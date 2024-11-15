@@ -11,6 +11,9 @@ from datetime import datetime
 import bcrypt
 from functools import wraps
 from werkzeug.utils import secure_filename
+import smtplib
+from email.mime.text import MIMEText
+import ssl
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Necesario para manejar sesiones y mensajes flash
@@ -33,7 +36,12 @@ os.makedirs(app.config['PREDICTIONS_FOLDER'], exist_ok=True)
 os.makedirs(app.config['RESULTS_FOLDER'], exist_ok=True)
 
 # Carga el modelo YOLO preentrenado con los pesos en 'last.pt'
-model = YOLO('last.pt')
+model = YOLO('best.pt')
+
+def audit_log(log: str = ''):
+    with open('static/audit_log.txt', 'a') as audit_log_file:
+        audit_log_file.write(log)
+    audit_log_file.close()
 
 # Modelo de Usuario
 class Usuario(db.Model):
@@ -43,6 +51,7 @@ class Usuario(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)  # Añadido campo username
     email = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
+    notify = db.Column(db.Boolean, nullable=False)
     
     pacientes = db.relationship('Paciente', backref='usuario', cascade="all, delete-orphan")
     
@@ -132,6 +141,7 @@ def login():
             # Iniciar sesión estableciendo el usuario en la sesión
             session['user_id'] = user.id
             session['username'] = user.username
+            audit_log(f'{datetime.now().strftime("%m/%d/%Y, %H:%M:%S")} LOGIN {session['username']}\n')
             return jsonify({'success': True, 'message': 'Inicio de sesión exitoso'}), 200
         else:
             return jsonify({'success': False, 'message': 'Nombre de usuario o contraseña incorrectos'}), 401
@@ -150,6 +160,7 @@ def register():
         username = data.get('username')
         email = data.get('email')
         password = data.get('password')
+        notify = data.get('notify')
 
         # Validación básica
         if not username or not email or not password:
@@ -163,10 +174,12 @@ def register():
             return jsonify({'success': False, 'message': 'El nombre de usuario ya está en uso'}), 400
 
         # Crear nuevo usuario
-        new_user = Usuario(username=username, email=email)
+        new_user = Usuario(username=username, email=email, notify=notify)
         new_user.set_password(password)  # Encripta la contraseña
         db.session.add(new_user)
         db.session.commit()
+
+        audit_log(f'{datetime.now().strftime("%m/%d/%Y, %H:%M:%S")} REGISTER {username}\n')
 
         return jsonify({'success': True, 'message': 'Registro exitoso'}), 200
     else:
@@ -187,6 +200,9 @@ def get_cases():
     
     # Consultar los pacientes asociados al usuario
     pacientes = Paciente.query.filter_by(usuario_id=user_id).all()
+    
+    user = Usuario.query.filter_by(id=user_id).first()
+    audit_log(f'{datetime.now().strftime("%m/%d/%Y, %H:%M:%S")} RETRIEVE CASES {user.username}\n')
     
     cases = []
     for paciente in pacientes:
@@ -262,6 +278,9 @@ def newcase():
             )
             db.session.add(new_reporte)
             db.session.commit()
+
+        user = Usuario.query.filter_by(id=session.get('user_id')).first()
+        audit_log(f'{datetime.now().strftime("%m/%d/%Y, %H:%M:%S")} NEW CASE {user.username}\n')
 
         return jsonify({'success': True, 'message': 'Paciente registrado exitosamente'}), 200
     else:
@@ -370,6 +389,10 @@ def upload_image():
 
     # Preprocesar la imagen
     preprocessed_path = preprocess_image(filepath)
+
+    user = Usuario.query.filter_by(id=session.get('user_id')).first()
+    audit_log(f'{datetime.now().strftime("%m/%d/%Y, %H:%M:%S")} UPLOAD IMAGE {user.username}\n')
+
     return jsonify({"message": "Imagen cargada y preprocesada", "preprocessed_path": preprocessed_path})
 
 @app.route('/upload_images', methods=['POST'])
@@ -409,6 +432,9 @@ def upload_images():
         db.session.commit()
 
         imagen_ids.append(nueva_imagen.id)
+
+    user = Usuario.query.filter_by(id=session.get('user_id')).first()
+    audit_log(f'{datetime.now().strftime("%m/%d/%Y, %H:%M:%S")} UPLOAD IMAGES {user.username}\n')
 
     return jsonify({'success': True, 'message': 'Imágenes subidas y preprocesadas', 'imagen_ids': imagen_ids}), 200
 
@@ -576,6 +602,27 @@ def analyze_images():
             'prediction_image_url': url_for('serve_predictions', filename=prediction_image_filename),
             'predictions': predictions
         })
+
+    user_id = session.get('user_id')
+    user = Usuario.query.filter_by(id=user_id).first()
+    if user.notify:
+        user_email = user.email
+        with open('static/user_notify.txt') as user_notify_file:
+            user_notify = MIMEText(user_notify_file.read())
+
+        business_email = 'cancervision.dontreply@gmail.com'
+        business_password = 'dtcj mwae lvrb sgqq'
+        user_notify['Subject'] = 'Su análisis ha finalizado.'
+        user_notify['From'] = business_email
+        user_notify['To'] = user_email
+        context = ssl.create_default_context()
+
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as smtp:
+            smtp.login(business_email, business_password)
+            smtp.sendmail(business_email, user_email, user_notify.as_string())
+
+    user = Usuario.query.filter_by(id=user_id).first()
+    audit_log(f'{datetime.now().strftime("%m/%d/%Y, %H:%M:%S")} ANALYZE IMAGES {user.username}\n')
 
     return jsonify({'success': True, 'results': results}), 200
 

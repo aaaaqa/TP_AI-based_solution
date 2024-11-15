@@ -1,0 +1,7 @@
+instance/*
+predictions/*
+preprocessed/*
+results/*
+uploads/*
+best.pt
+last.pt

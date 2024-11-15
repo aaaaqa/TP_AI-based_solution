@@ -4,7 +4,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('analyzeButton').addEventListener('click', function() {
         const files = document.getElementById('fileUpload').files;
-        if (files.length > 0) {
+
+        var fileSize = true;
+
+        for (var i = 0; file = files[i]; i++) {
+            // Higher than 20MB
+            if(file.size > 20000000){
+                console.log(file.size);
+                fileSize = false;
+                break;
+            }
+        } 
+
+        if (files.length > 0 && fileSize == true) {
             const formData = new FormData();
             // Agregar el ID del paciente
             const pacienteId = document.getElementById('subjectId').textContent;
@@ -36,6 +48,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             'Content-Type': 'application/json'
                         }
                     });
+
+                    
+
                 } else {
                     throw new Error("Error al subir las imágenes: " + data.message);
                 }
@@ -52,6 +67,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => console.error('Error:', error));
+        } else if (fileSize == false) { 
+            alert('Los archivos deben pesar menos de 20 MB.');
         } else {
             alert('Por favor, sube al menos una tomografía para analizar.');
         }
