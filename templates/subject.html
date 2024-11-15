@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Detalles del Caso de Radiología</title>
+    <!-- Enlace al archivo CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/subject/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Detalles del Caso de Radiología</h1>
+        <div class="content">
+            <div class="case-info box">
+                <h2>Información</h2>
+                <p><strong>ID:</strong> <span id="subjectId">{{ paciente.id }}</span></p>
+                <p><strong>Nombre:</strong> <span id="subjectName">{{ paciente.nombre }}</span></p>
+                <p><strong>Edad:</strong> <span id="subjectAge">{{ paciente.edad }}</span></p>
+                <p><strong>Género:</strong> <span id="subjectGender">{{ paciente.genero }}</span></p>
+                <p><strong>DNI:</strong> <span id="subjectDni">{{ paciente.dni }}</span></p>
+                <!-- Más información si es necesaria -->
+            </div>
+            <div class="image-section box">
+                <h2>Imágenes</h2>
+                <div class="image-gallery" id="imageGallery">
+                    <!-- Las imágenes del paciente se cargarán aquí -->
+                </div>
+            </div>
+        </div>
+        <div class="upload-analyze-section box">
+            <div class="upload-section">
+                <h2>Subir Nuevas Tomografías</h2>
+                <input type="file" id="fileUpload" accept="image/*" multiple>
+            </div>
+            <button id="analyzeButton">Analizar con AI</button>
+        </div>
+        <div class="analysis-results-section box">
+            <h2>Reporte de Análisis</h2>
+            <div class="images-container" id="analysisImagesContainer">
+                <!-- Las imágenes analizadas se mostrarán aquí -->
+            </div>
+            <div id="predictionDetails" class="prediction-details">
+                <!-- Detalles de las predicciones -->
+            </div>
+        </div>
+    </div>
+    <!-- Modal para comparar imágenes -->
+    <div id="compareModal" class="modal">
+        <span class="close" onclick="closeCompareModal()">&times;</span>
+        <div class="modal-content compare-content">
+            <div class="compare-image-container">
+                <h3>Imagen Original</h3>
+                <img id="compareOriginalImage" src="" alt="Imagen Original">
+            </div>
+            <div class="compare-image-container">
+                <h3>Imagen Analizada</h3>
+                <img id="compareAnalyzedImage" src="" alt="Imagen Analizada">
+            </div>
+        </div>
+    </div>
+    <!-- Modal para ver la imagen en grande -->
+    <div id="imageModal" class="modal" onclick="closeModal()">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modalImage">
+        <div id="caption"></div>
+    </div>
+
+    <!-- Enlace al archivo JavaScript -->
+    <script src="{{ url_for('static', filename='js/subject.js') }}"></script>
+</body>
+</html>

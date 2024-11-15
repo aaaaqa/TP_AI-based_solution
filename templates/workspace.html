@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Radiologist Workspace</title>
+    <!-- Enlace al archivo CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/workspace/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Radiologist Workspace</h1>
+            <input type="text" id="searchInput" placeholder="Buscar por ID">
+            <button id="addCaseButton" onclick="location.href='{{ url_for('newcase') }}';">Añadir Nuevo Caso</button>
+        </header>
+        <main>
+            <div id="message"></div>
+            <div id="caseList" class="case-list">
+                <!-- Los casos se insertarán dinámicamente aquí -->
+            </div>
+        </main>
+    </div>
+    <!-- Enlace al archivo JavaScript -->
+    <script src="{{ url_for('static', filename='js/workspace.js') }}"></script>
+</body>
+</html>
