@@ -282,9 +282,12 @@ function downloadReport(pacienteId) {
         .then(blob => {
             // Crear un enlace temporal para descargar el archivo
             const url = window.URL.createObjectURL(blob);
+
+            console.log(blob);
+
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Reporte_Paciente_${pacienteId}.json`;
+            a.download = `Reporte_Paciente_${pacienteId}.csv`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -393,10 +396,10 @@ function showAnalysisDetails(resultados) {
         const detailsHTML = `
             <div class="prediction-detail">
                 <h3>Predicción ${index + 1}</h3>
-                <p><strong>Confianza:</strong> ${prediction.confidence}</p>
-                <p><strong>Coordenadas:</strong> (${prediction.coordinates.x1}, ${prediction.coordinates.y1}) - (${prediction.coordinates.x2}, ${prediction.coordinates.y2})</p>
-                <p><strong>Tamaño:</strong> Ancho: ${prediction.size.width}, Alto: ${prediction.size.height}</p>
-                <p><strong>ID de Clase:</strong> ${prediction.class_id}</p>
+                <p><strong>Probabilidad:</strong> ${String(prediction.confidence).substring(0,5)}</p>
+                <p><strong>Coordenadas (x,y):</strong> (${prediction.coordinates.x1}, ${prediction.coordinates.y1}) - (${prediction.coordinates.x2}, ${prediction.coordinates.y2})</p>
+                <p><strong>Tamaño:</strong> Ancho: ${String(parseFloat(prediction.size.width) * 0.2645833333).substring(0,4)} mm, Alto: ${String(parseFloat(prediction.size.height) * 0.2645833333).substring(0,4)} mm</p>
+                <p><strong>Nódulo:</strong> ${parseInt(prediction.class_id) == 0 ? 'Sí' : ' No'}</p>
             </div>
         `;
         detailsContainer.innerHTML += detailsHTML;

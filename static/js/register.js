@@ -32,17 +32,20 @@ document.getElementById('registrationForm').addEventListener('submit', function(
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            alert('¡Registro exitoso!')
             displayMessage('¡Registro exitoso!', 'success');
             // Redirigir al usuario a la página de inicio de sesión después de un breve retraso
             setTimeout(() => {
                 window.location.href = '/login';
             }, 2000);
         } else {
+            alert(data.message)
             displayMessage(data.message, 'error');
         }
     })
     .catch((error) => {
         console.error('Error:', error);
+        alert('Ocurrió un error al registrar. Por favor, inténtalo de nuevo.')
         displayMessage('Ocurrió un error al registrar. Por favor, inténtalo de nuevo.', 'error');
     });
 });

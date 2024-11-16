@@ -9,3 +9,5 @@ predictions/*
 preprocessed/*
 results/*
 uploads/*
+audit_log.txt
+static/originals*

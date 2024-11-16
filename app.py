@@ -16,6 +16,9 @@ import shutil
 import smtplib
 from email.mime.text import MIMEText
 import ssl
+import csv
+from io import StringIO
+import re
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Necesario para manejar sesiones y mensajes flash
@@ -395,31 +398,71 @@ def download_report():
 
     # Obtener los análisis realizados
     analisis_list = []
+    resultados = []
     for imagen in paciente.imagenes:
+
         for analisis in imagen.analisis_imagenes:
             # Cargar los resultados almacenados
-            resultados = json.loads(analisis.resultados) if analisis.resultados else {}
+            preparsed_resultados = analisis.resultados if analisis.resultados else {}
+            preparsed_resultados = preparsed_resultados.strip('[]')
+
+            patron_resultados = r'"(\w+)"\s*:\s*("[^"]*"|\d+\.?\d*|\{[^}]*\})'
+            preparsed_resultados = re.findall(patron_resultados, preparsed_resultados)
+
+            resultados_data = []
+
+            for _, value in preparsed_resultados:
+                if value.startswith("{"):
+                    nested_dict = value.strip("{}")
+                    nested_pairs = nested_dict.split(",")
+                    for pair in nested_pairs:
+                        nested_key, nested_value = pair.split(":")
+                        nested_key = nested_key.strip('"')
+                        nested_value = nested_value.strip()
+                        resultados_data.append(nested_value.strip('"'))
+                else:
+                    resultados_data.append(value.strip('"'))
+
             analisis_data = {
                 'analisis_id': analisis.id,
                 'fecha_analisis': analisis.fecha_analisis.strftime('%Y-%m-%d %H:%M:%S'),
                 'imagen_original_id': analisis.imagen_original_id,
-                'resultados': resultados
             }
             analisis_list.append(analisis_data)
 
-    # Consolidar el informe
-    report_data = {
-        'paciente': paciente_data,
-        'analisis': analisis_list
-    }
+            resultados_data[1] = resultados_data[1][:5]
+            resultados_data[6] = str(int(resultados_data[6]) * 0.2645833333)[:4]
+            resultados_data[7] = str(int(resultados_data[7]) * 0.2645833333)[:4]
+            resultados_data[-1] = 'Si' if resultados_data[-1] == '0' else 'No'
 
-    # Convertir el informe a JSON
-    report_json = json.dumps(report_data, indent=4)
+            resultados.append(resultados_data)
 
-    # Preparar la respuesta para descargar el archivo
-    response = make_response(report_json)
-    response.headers['Content-Type'] = 'application/json'
-    response.headers['Content-Disposition'] = f'attachment; filename=Reporte_Paciente_{paciente_id}.json'
+    output = StringIO()
+    writer = csv.writer(output, delimiter=';')
+
+    # Encabezados del archivo CSV
+    writer.writerow(['Paciente ID', 'Nombre', 'DNI', 'Edad', 'Genero', 'Fecha Registro', 'Urgencia'])
+    writer.writerow([
+        paciente_data['id'], paciente_data['nombre'], paciente_data['dni'],
+        paciente_data['edad'], paciente_data['genero'], paciente_data['fecha_registro'], paciente_data['urgencia']
+    ])
+
+    # Añadir datos de los análisis
+    writer.writerow([])  # Línea vacía para separar secciones
+    writer.writerow(['Analisis ID', 'Fecha Analisis', 'Imagen Original ID', 'Nombre de archivo', 'Probabilidad', 'Coordenadas.x1', 'Coordenadas.y1', 'Coordenadas.x2', 'Coordenadas.y1', 'Ancho', 'Largo', 'Nodulo'])
+
+    i = 0
+
+    for analisis in analisis_list:
+        combine_data = [analisis['analisis_id'], analisis['fecha_analisis'], analisis['imagen_original_id']]
+        for data in resultados[i]:
+            combine_data.append(data)
+        writer.writerow(combine_data)
+        i += 1
+
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = f'attachment; filename=Reporte_Paciente_{paciente_id}.csv'
 
     return response
 
