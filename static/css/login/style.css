@@ -60,3 +60,25 @@ button:hover {
     text-align: center;
     color: red;
 }
+
+/* Estilo para mensajes de error */
+.message.error {
+    color: red;
+}
+
+/* Estilo para mensajes de éxito */
+.message.success {
+    color: green;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Icono de check verde */
+.message.success::before {
+    content: '✔'; /* Unicode del check */
+    color: green;
+    font-size: 1.5em;
+    margin-right: 8px;
+}

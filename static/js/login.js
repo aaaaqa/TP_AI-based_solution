@@ -47,5 +47,5 @@ document.getElementById('loginForm').addEventListener('submit', function(event) 
 function displayMessage(message, type) {
     const messageDiv = document.getElementById('message');
     messageDiv.textContent = message;
-    messageDiv.className = type; // Puedes usar clases CSS para estilos
+    messageDiv.className = `message ${type}`; // Añade las clases CSS dinámicamente
 }

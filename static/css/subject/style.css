@@ -177,3 +177,42 @@ h1 {
 .close:hover {
     color: #ccc;
 }
+
+/* Estilos para la sección de comparación */
+.comparison-section {
+    margin-top: 20px;
+}
+
+.comparison-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.comparison-gallery .image-container {
+    position: relative;
+}
+
+.comparison-gallery img {
+    width: 150px;
+    height: auto;
+    cursor: pointer;
+}
+
+.comparison-gallery button {
+    display: block;
+    margin-top: 5px;
+}
+
+/* Estilos para el modal de visualización */
+#visualizeModal .modal-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+#visualizeModal .modal-content img {
+    max-width: 90%;
+    height: auto;
+}

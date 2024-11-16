@@ -20,7 +20,8 @@ import csv
 from io import StringIO
 import re
 from flask import Flask, request, jsonify, render_template
-from sqlalchemy import or_
+from sqlalchemy import or_, cast
+from sqlalchemy.types import String
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Necesario para manejar sesiones y mensajes flash
@@ -166,15 +167,13 @@ def login():
         # Si la solicitud es GET, renderiza la plantilla de inicio de sesión
         return render_template('login.html')
 
+# Ruta de registro de usuario
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         data = request.get_json()
         if not data:
-            return jsonify({
-                'success': False,
-                'message': 'No se proporcionaron datos'
-            }), 400  # Bad Request
+            return jsonify({'success': False, 'message': 'No se proporcionaron datos'}), 400
 
         username = data.get('username')
         email = data.get('email')
@@ -188,14 +187,12 @@ def register():
                 'success': False,
                 'message': 'Todos los campos son obligatorios, excepto notificaciones.'
             }), 400  # Bad Request
-
         # Validar que las contraseñas coincidan
         if password != confirm_password:
             return jsonify({
                 'success': False,
                 'message': 'Las contraseñas no coinciden.'
             }), 400  # Bad Request
-
         # Validar contraseña en el servidor
         password_errors = []
         if len(password) < 8:
@@ -207,7 +204,6 @@ def register():
                 'success': False,
                 'message': ' '.join(password_errors)
             }), 422  # Unprocessable Entity
-
         # Verificar si el nombre de usuario o correo electrónico ya existen
         existing_user = Usuario.query.filter(
             or_(Usuario.username == username, Usuario.email == email)
@@ -217,16 +213,13 @@ def register():
                 'success': False,
                 'message': 'El nombre de usuario o correo electrónico ya están registrados.'
             }), 409  # Conflict
-
         try:
             # Crear un nuevo usuario
             new_user = Usuario(username=username, email=email)
             new_user.set_password(password)  # Almacenar la contraseña de forma segura
             new_user.notify = notify
-
             db.session.add(new_user)
             db.session.commit()
-
             return jsonify({
                 'success': True,
                 'message': 'Registro exitoso'
@@ -241,6 +234,7 @@ def register():
             }), 500  # Internal Server Error
     else:
         return render_template('register.html')
+        
 
 # Ruta protegida de workspace
 @app.route('/workspace')
@@ -290,7 +284,42 @@ def get_cases():
     # Devolver los casos
     return jsonify({'cases': cases})
 
+@app.route('/api/search_patients', methods=['POST'])
+@login_required
+def search_patients():
+    data = request.get_json()
+    search_term = data.get('search_term', '').strip()
+    if not search_term:
+        return jsonify({'success': False, 'message': 'No se proporcionó un término de búsqueda'}), 400
 
+    user_id = session.get('user_id')
+
+    # Buscar pacientes que pertenecen al usuario actual y que coinciden con el término de búsqueda
+    pacientes = Paciente.query.filter(
+        Paciente.usuario_id == user_id,
+        or_(
+            cast(Paciente.id, String).ilike(f'%{search_term}%'),
+            Paciente.nombre.ilike(f'%{search_term}%'),
+            Paciente.dni.ilike(f'%{search_term}%'),
+            Paciente.urgencia.ilike(f'%{search_term}%')
+        )
+    ).all()
+
+    if not pacientes:
+        return jsonify({'success': False, 'message': 'No se encontraron pacientes que coincidan con la búsqueda.'}), 404
+
+    pacientes_data = []
+    for paciente in pacientes:
+        pacientes_data.append({
+            'id': paciente.id,
+            'nombre': paciente.nombre,
+            'dni': paciente.dni,
+            'edad': paciente.edad,
+            'genero': paciente.genero,
+            'urgencia': paciente.urgencia
+        })
+
+    return jsonify({'success': True, 'patients': pacientes_data}), 200
 
 @app.route('/newcase', methods=['GET', 'POST'])
 @login_required
@@ -442,48 +471,39 @@ def download_report():
     analisis_list = []
     resultados = []
     for imagen in paciente.imagenes:
-
         for analisis in imagen.analisis_imagenes:
             # Cargar los resultados almacenados
-            preparsed_resultados = analisis.resultados if analisis.resultados else {}
-            preparsed_resultados = preparsed_resultados.strip('[]')
+            resultados_json = json.loads(analisis.resultados) if analisis.resultados else {}
 
-            patron_resultados = r'"(\w+)"\s*:\s*("[^"]*"|\d+\.?\d*|\{[^}]*\})'
-            preparsed_resultados = re.findall(patron_resultados, preparsed_resultados)
-
-            resultados_data = []
-
-            for _, value in preparsed_resultados:
-                if value.startswith("{"):
-                    nested_dict = value.strip("{}")
-                    nested_pairs = nested_dict.split(",")
-                    for pair in nested_pairs:
-                        nested_key, nested_value = pair.split(":")
-                        nested_key = nested_key.strip('"')
-                        nested_value = nested_value.strip()
-                        resultados_data.append(nested_value.strip('"'))
-                else:
-                    resultados_data.append(value.strip('"'))
+            # Si no hay predicciones, añadir un indicador
+            if not resultados_json.get('predictions'):
+                resultados_data = [{
+                    'filename': os.path.basename(imagen.archivo_path),
+                    'confidence': '',
+                    'coordinates': {'x1': '', 'y1': '', 'x2': '', 'y2': ''},
+                    'size': {'width': '', 'height': ''},
+                    'class_id': '',
+                    'no_detections': True  # Indicador de que no hay detecciones
+                }]
+            else:
+                resultados_data = resultados_json['predictions']
+                # Añadir indicador de que sí hay detecciones
+                for resultado in resultados_data:
+                    resultado['no_detections'] = False
 
             analisis_data = {
                 'analisis_id': analisis.id,
                 'fecha_analisis': analisis.fecha_analisis.strftime('%Y-%m-%d %H:%M:%S'),
                 'imagen_original_id': analisis.imagen_original_id,
+                'resultados': resultados_data
             }
             analisis_list.append(analisis_data)
-
-            resultados_data[1] = resultados_data[1][:5]
-            resultados_data[6] = str(int(resultados_data[6]) * 0.2645833333)[:4]
-            resultados_data[7] = str(int(resultados_data[7]) * 0.2645833333)[:4]
-            resultados_data[-1] = 'Si' if resultados_data[-1] == '0' else 'No'
-
-            resultados.append(resultados_data)
 
     output = StringIO()
     writer = csv.writer(output, delimiter=';')
 
     # Encabezados del archivo CSV
-    writer.writerow(['Paciente ID', 'Nombre', 'DNI', 'Edad', 'Genero', 'Fecha Registro', 'Urgencia'])
+    writer.writerow(['Paciente ID', 'Nombre', 'DNI', 'Edad', 'Género', 'Fecha Registro', 'Urgencia'])
     writer.writerow([
         paciente_data['id'], paciente_data['nombre'], paciente_data['dni'],
         paciente_data['edad'], paciente_data['genero'], paciente_data['fecha_registro'], paciente_data['urgencia']
@@ -491,19 +511,45 @@ def download_report():
 
     # Añadir datos de los análisis
     writer.writerow([])  # Línea vacía para separar secciones
-    writer.writerow(['Analisis ID', 'Fecha Analisis', 'Imagen Original ID', 'Nombre de archivo', 'Probabilidad', 'Coordenadas.x1', 'Coordenadas.y1', 'Coordenadas.x2', 'Coordenadas.y1', 'Ancho', 'Largo', 'Nodulo'])
-
-    i = 0
+    writer.writerow([
+        'Análisis ID', 'Fecha Análisis', 'Imagen Original ID', 'Nombre de archivo', 'Probabilidad',
+        'Coordenadas x1', 'Coordenadas y1', 'Coordenadas x2', 'Coordenadas y2',
+        'Ancho (mm)', 'Alto (mm)', 'Nódulo'
+    ])
 
     for analisis in analisis_list:
-        combine_data = [analisis['analisis_id'], analisis['fecha_analisis'], analisis['imagen_original_id']]
-        for data in resultados[i]:
-            combine_data.append(data)
-        writer.writerow(combine_data)
-        i += 1
+        resultados_data = analisis['resultados']
+        for resultado in resultados_data:
+            if resultado['no_detections']:
+                # No hay detecciones, agregar una fila indicando esto
+                combine_data = [
+                    analisis['analisis_id'], analisis['fecha_analisis'], analisis['imagen_original_id'],
+                    resultado['filename'], 'No se detectaron objetos', '', '', '', '', '', '', ''
+                ]
+            else:
+                # Procesar los datos de detección
+                confidence = f"{resultado['confidence']:.2f}"
+                x1 = resultado['coordinates']['x1']
+                y1 = resultado['coordinates']['y1']
+                x2 = resultado['coordinates']['x2']
+                y2 = resultado['coordinates']['y2']
+                width = resultado['size']['width']
+                height = resultado['size']['height']
+                # Convertir las dimensiones de píxeles a mm si es necesario
+                width_mm = f"{float(width) * 0.2645833333:.2f}"
+                height_mm = f"{float(height) * 0.2645833333:.2f}"
+                nodulo = 'Sí' if int(resultado['class_id']) == 0 else 'No'
+
+                combine_data = [
+                    analisis['analisis_id'], analisis['fecha_analisis'], analisis['imagen_original_id'],
+                    resultado['filename'], confidence,
+                    x1, y1, x2, y2,
+                    width_mm, height_mm, nodulo
+                ]
+            writer.writerow(combine_data)
 
     response = make_response(output.getvalue())
-    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
     response.headers['Content-Disposition'] = f'attachment; filename=Reporte_Paciente_{paciente_id}.csv'
 
     return response
@@ -839,7 +885,11 @@ def analyze_images():
         image.save(prediction_image_path)
 
         # Guardar los resultados en formato JSON en el campo 'resultados' del modelo
-        resultados_json = json.dumps({"predictions": predictions})
+        if not predictions:
+            # Guardar un resultado indicando que no hubo detecciones
+            resultados_json = json.dumps({'predictions': []})
+        else:
+            resultados_json = json.dumps({'predictions': predictions})
 
         # Guardar la imagen analizada en la base de datos
         analisis_imagen = AnalisisImagen(

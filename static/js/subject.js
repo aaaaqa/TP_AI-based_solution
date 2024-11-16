@@ -5,6 +5,7 @@ let canvas, ctx;
 let color = '#ff0000';
 let imageToEdit = null;
 let hasChanges = false;
+let selectedImages = [];
 
 function openDrawingModal(imageSrc, imageId) {
     imageToEdit = { src: imageSrc, id: imageId };
@@ -242,6 +243,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+document.getElementById('visualizeButton').addEventListener('click', function() {
+    if (selectedImages.length === 0) {
+        alert('No hay imágenes seleccionadas para visualizar.');
+        return;
+    }
+    openVisualizeModal();
+})
+
 function saveEditedImage(imageData, imageId) {
     fetch('/save_edited_image', {
         method: 'POST',
@@ -315,13 +324,12 @@ function loadPatientImages() {
                     img.src = image.url;
                     img.alt = 'Tomografía ' + image.id;
 
-                    // Verificar si es una imagen original
+                    // Evento al hacer clic en la imagen original
                     if (image.es_original) {
                         img.onclick = function() {
                             openDrawingModal(img.src, image.id);
                         };
                     } else {
-                        // Si es una imagen analizada, abrir en el modal de visualización
                         img.onclick = function() {
                             openImageInModal(img.src);
                         };
@@ -335,8 +343,16 @@ function loadPatientImages() {
                         setMainImage(image.id);
                     };
 
+                    // Botón para añadir la imagen a la comparación
+                    const compareButton = document.createElement('button');
+                    compareButton.textContent = 'Añadir a Comparación';
+                    compareButton.onclick = function() {
+                        addToComparison(image.id, image.url);
+                    };
+
                     imgContainer.appendChild(img);
                     imgContainer.appendChild(mainButton);
+                    imgContainer.appendChild(compareButton);
 
                     // Mostrar imágenes analizadas
                     if (image.analisis_imagenes && image.analisis_imagenes.length > 0) {
@@ -351,11 +367,26 @@ function loadPatientImages() {
                                 openImageInModal(analisisImg.src);
                             };
 
-                            // Botón para comparar imágenes
-                            const compareButton = document.createElement('button');
-                            compareButton.textContent = 'Comparar';
-                            compareButton.onclick = function() {
+                            // Botón para marcar como imagen principal (para imágenes analizadas)
+                            const mainButtonAnalisis = document.createElement('button');
+                            mainButtonAnalisis.textContent = analisis.es_principal ? 'Imagen Principal' : 'Marcar como Principal';
+                            mainButtonAnalisis.disabled = analisis.es_principal;
+                            mainButtonAnalisis.onclick = function() {
+                                setMainImage(analisis.id, true); // Pasamos true para indicar que es una imagen analizada
+                            };
+
+                            // Botón para comparar la imagen analizada con la original
+                            const compareWithOriginalButton = document.createElement('button');
+                            compareWithOriginalButton.textContent = 'Comparar con Original';
+                            compareWithOriginalButton.onclick = function() {
                                 compareImages(image.url, analisisImg.src, image.id);
+                            };
+
+                            // Botón para añadir la imagen analizada a la comparación
+                            const compareButtonAnalisis = document.createElement('button');
+                            compareButtonAnalisis.textContent = 'Añadir a Comparación';
+                            compareButtonAnalisis.onclick = function() {
+                                addToComparison(analisis.id, analisisImg.src);
                             };
 
                             // Botón para ver detalles del análisis
@@ -370,7 +401,9 @@ function loadPatientImages() {
                             analisisInfo.textContent = 'Fecha análisis: ' + analisis.fecha_analisis;
 
                             analisisContainer.appendChild(analisisImg);
-                            analisisContainer.appendChild(compareButton);
+                            analisisContainer.appendChild(mainButtonAnalisis);
+                            analisisContainer.appendChild(compareWithOriginalButton);
+                            analisisContainer.appendChild(compareButtonAnalisis);
                             analisisContainer.appendChild(detailsButton);
                             analisisContainer.appendChild(analisisInfo);
 
@@ -387,28 +420,66 @@ function loadPatientImages() {
         .catch(error => console.error('Error:', error));
 }
 
+
+function openVisualizeModal() {
+    const modal = document.getElementById('visualizeModal');
+    const carousel = document.getElementById('visualizeCarousel');
+    carousel.innerHTML = ''; // Limpiar contenido previo
+
+    selectedImages.forEach(image => {
+        const img = document.createElement('img');
+        img.src = image.url;
+        img.alt = 'Imagen ' + image.id;
+        // Si deseas agregar funcionalidad adicional al hacer clic en la imagen
+        img.onclick = function() {
+            openImageInModal(img.src);
+        };
+        carousel.appendChild(img);
+    });
+
+    modal.style.display = 'block';
+}
+
+// Cerrar el modal de visualización al hacer clic fuera de él
+window.onclick = function(event) {
+    const modal = document.getElementById('visualizeModal');
+    if (event.target === modal) {
+        modal.style.display = 'none';
+    }
+};
+// Definir la función en el ámbito global
+function closeVisualizeModal() {
+    const modal = document.getElementById('visualizeModal');
+    modal.style.display = 'none';
+}
 // Función para mostrar detalles del análisis
 function showAnalysisDetails(resultados) {
     const detailsContainer = document.getElementById('analysisDetails');
     detailsContainer.innerHTML = ''; // Limpiar contenido previo
 
-    resultados.predictions.forEach((prediction, index) => {
-        const detailsHTML = `
-            <div class="prediction-detail">
-                <h3>Predicción ${index + 1}</h3>
-                <p><strong>Probabilidad:</strong> ${String(prediction.confidence).substring(0,5)}</p>
-                <p><strong>Coordenadas (x,y):</strong> (${prediction.coordinates.x1}, ${prediction.coordinates.y1}) - (${prediction.coordinates.x2}, ${prediction.coordinates.y2})</p>
-                <p><strong>Tamaño:</strong> Ancho: ${String(parseFloat(prediction.size.width) * 0.2645833333).substring(0,4)} mm, Alto: ${String(parseFloat(prediction.size.height) * 0.2645833333).substring(0,4)} mm</p>
-                <p><strong>Nódulo:</strong> ${parseInt(prediction.class_id) == 0 ? 'Sí' : ' No'}</p>
-            </div>
-        `;
-        detailsContainer.innerHTML += detailsHTML;
-    });
+    // Verificar si hay predicciones
+    if (!resultados.predictions || resultados.predictions.length === 0) {
+        detailsContainer.innerHTML = '<p>No hay nódulos detectados</p>';
+    } else {
+        resultados.predictions.forEach((prediction, index) => {
+            const detailsHTML = `
+                <div class="prediction-detail">
+                    <h3>Predicción ${index + 1}</h3>
+                    <p><strong>Probabilidad:</strong> ${String(prediction.confidence).substring(0,5)}</p>
+                    <p><strong>Coordenadas (x,y):</strong> (${prediction.coordinates.x1}, ${prediction.coordinates.y1}) - (${prediction.coordinates.x2}, ${prediction.coordinates.y2})</p>
+                    <p><strong>Tamaño:</strong> Ancho: ${String(parseFloat(prediction.size.width) * 0.2645833333).substring(0,4)} mm, Alto: ${String(parseFloat(prediction.size.height) * 0.2645833333).substring(0,4)} mm</p>
+                    <p><strong>Nódulo:</strong> ${parseInt(prediction.class_id) == 0 ? 'Sí' : 'No'}</p>
+                </div>
+            `;
+            detailsContainer.innerHTML += detailsHTML;
+        });
+    }
 
     // Mostrar el modal de detalles
     const modal = document.getElementById("detailsModal");
     modal.style.display = "block";
 }
+
 
 function closeDetailsModal() {
     const modal = document.getElementById("detailsModal");
@@ -437,6 +508,48 @@ function compareImages(originalImageUrl, analyzedImageUrl, imageId) {
 function closeCompareModal() {
     const modal = document.getElementById("compareModal");
     modal.style.display = "none";
+}
+
+function addToComparison(imageId, imageUrl) {
+    // Verificar si la imagen ya está en la selección
+    if (!selectedImages.some(img => img.id === imageId)) {
+        selectedImages.push({ id: imageId, url: imageUrl });
+        updateComparisonGallery();
+    } else {
+        alert('La imagen ya ha sido añadida a la comparación.');
+    }
+}
+function removeFromComparison(imageId) {
+    selectedImages = selectedImages.filter(img => img.id !== imageId);
+    updateComparisonGallery();
+}
+function updateComparisonGallery() {
+    const comparisonGallery = document.getElementById('comparisonGallery');
+    comparisonGallery.innerHTML = ''; // Limpiar contenido previo
+
+    selectedImages.forEach(image => {
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'image-container';
+
+        const img = document.createElement('img');
+        img.src = image.url;
+        img.alt = 'Imagen ' + image.id;
+        img.onclick = function() {
+            openImageInModal(img.src);
+        };
+
+        // Botón para eliminar la imagen de la comparación
+        const removeButton = document.createElement('button');
+        removeButton.textContent = 'Eliminar';
+        removeButton.onclick = function() {
+            removeFromComparison(image.id);
+        };
+
+        imgContainer.appendChild(img);
+        imgContainer.appendChild(removeButton);
+
+        comparisonGallery.appendChild(imgContainer);
+    });
 }
 
 
@@ -475,16 +588,26 @@ function displayAnalysisResults(results) {
         analysisImagesContainer.appendChild(imageWrapper);
 
         // Mostrar detalles de predicción
-        const detailsHTML = `
-            <div>
-                <h3>Predicción para Imagen ${result.imagen_id}</h3>
-                <p><strong>Número de Nódulos Detectados:</strong> ${result.predictions.length}</p>
-                <!-- Más detalles si es necesario -->
-            </div>
-        `;
-        detailsContainer.innerHTML += detailsHTML;
+        if (result.predictions.length === 0) {
+            detailsContainer.innerHTML += `
+                <div>
+                    <h3>Predicción para Imagen ${result.imagen_id}</h3>
+                    <p><strong>No se detectaron objetos en esta imagen.</strong></p>
+                </div>
+            `;
+        } else {
+            const detailsHTML = `
+                <div>
+                    <h3>Predicción para Imagen ${result.imagen_id}</h3>
+                    <p><strong>Número de Nódulos Detectados:</strong> ${result.predictions.length}</p>
+                    <!-- Más detalles si es necesario -->
+                </div>
+            `;
+            detailsContainer.innerHTML += detailsHTML;
+        }
     });
 }
+
 
 function openImageInModal(src) {
     const modal = document.getElementById('imageModal');

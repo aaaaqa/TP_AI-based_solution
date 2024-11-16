@@ -30,6 +30,14 @@
                     <button id="downloadReportButton">Descargar Informe CSV</button>
                 </p>
             </div>
+            <!-- Añadir esta sección debajo de la galería de imágenes -->
+            <div class="comparison-section box">
+                <h2>Comparación</h2>
+                <div class="comparison-gallery" id="comparisonGallery">
+                    <!-- Las imágenes seleccionadas para comparar se mostrarán aquí -->
+                </div>
+                <button id="visualizeButton">Visualizar</button>
+            </div>
             <div class="image-section box">
                 <h2>Imágenes</h2>
                 <div class="image-gallery" id="imageGallery">
@@ -51,6 +59,16 @@
                 <div id="predictionDetails" class="prediction-details">
                     <!-- Detalles de las predicciones -->
                 </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal para visualizar imágenes seleccionadas -->
+    <div id="visualizeModal" class="modal">
+        <span class="close" onclick="closeVisualizeModal()">&times;</span>
+        <div class="modal-content">
+            <!-- Contenedor para las imágenes seleccionadas -->
+            <div class="carousel" id="visualizeCarousel">
+                <!-- Las imágenes se cargarán aquí -->
             </div>
         </div>
     </div>
