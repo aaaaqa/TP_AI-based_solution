@@ -19,6 +19,8 @@ import ssl
 import csv
 from io import StringIO
 import re
+from flask import Flask, request, jsonify, render_template
+from sqlalchemy import or_
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Necesario para manejar sesiones y mensajes flash
@@ -156,7 +158,7 @@ def login():
             # Iniciar sesión estableciendo el usuario en la sesión
             session['user_id'] = user.id
             session['username'] = user.username
-            audit_log(f'{datetime.now().strftime("%m/%d/%Y, %H:%M:%S")} LOGIN {session['username']}\n')
+            audit_log(f'{datetime.now().strftime("%m/%d/%Y, %H:%M:%S")} LOGIN {session["username"]}\n')
             return jsonify({'success': True, 'message': 'Inicio de sesión exitoso'}), 200
         else:
             return jsonify({'success': False, 'message': 'Nombre de usuario o contraseña incorrectos'}), 401
@@ -164,39 +166,79 @@ def login():
         # Si la solicitud es GET, renderiza la plantilla de inicio de sesión
         return render_template('login.html')
 
-# Ruta de registro de usuario
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         data = request.get_json()
         if not data:
-            return jsonify({'success': False, 'message': 'No se proporcionaron datos'}), 400
+            return jsonify({
+                'success': False,
+                'message': 'No se proporcionaron datos'
+            }), 400  # Bad Request
 
         username = data.get('username')
         email = data.get('email')
         password = data.get('password')
-        notify = data.get('notify')
+        confirm_password = data.get('confirm_password')  # Nuevo campo
+        notify = data.get('notify', False)  # Campo opcional, valor por defecto False
+        print(username, email, password, confirm_password, notify)
+        # Validar que los campos obligatorios estén presentes
+        if not username or not email or not password or not confirm_password:
+            return jsonify({
+                'success': False,
+                'message': 'Todos los campos son obligatorios, excepto notificaciones.'
+            }), 400  # Bad Request
 
-        # Validación básica
-        if not username or not email or not password:
-            return jsonify({'success': False, 'message': 'Todos los campos son obligatorios'}), 400
+        # Validar que las contraseñas coincidan
+        if password != confirm_password:
+            return jsonify({
+                'success': False,
+                'message': 'Las contraseñas no coinciden.'
+            }), 400  # Bad Request
 
-        # Verificar si el correo o el nombre de usuario ya están registrados
-        if Usuario.query.filter_by(email=email).first():
-            return jsonify({'success': False, 'message': 'El correo ya está registrado'}), 400
+        # Validar contraseña en el servidor
+        password_errors = []
+        if len(password) < 8:
+            password_errors.append('La contraseña debe tener al menos 8 caracteres.')
+        if not any(char.isdigit() for char in password):
+            password_errors.append('La contraseña debe contener al menos un número.')
+        if password_errors:
+            return jsonify({
+                'success': False,
+                'message': ' '.join(password_errors)
+            }), 422  # Unprocessable Entity
 
-        if Usuario.query.filter_by(username=username).first():
-            return jsonify({'success': False, 'message': 'El nombre de usuario ya está en uso'}), 400
+        # Verificar si el nombre de usuario o correo electrónico ya existen
+        existing_user = Usuario.query.filter(
+            or_(Usuario.username == username, Usuario.email == email)
+        ).first()
+        if existing_user:
+            return jsonify({
+                'success': False,
+                'message': 'El nombre de usuario o correo electrónico ya están registrados.'
+            }), 409  # Conflict
 
-        # Crear nuevo usuario
-        new_user = Usuario(username=username, email=email, notify=notify)
-        new_user.set_password(password)  # Encripta la contraseña
-        db.session.add(new_user)
-        db.session.commit()
+        try:
+            # Crear un nuevo usuario
+            new_user = Usuario(username=username, email=email)
+            new_user.set_password(password)  # Almacenar la contraseña de forma segura
+            new_user.notify = notify
 
-        audit_log(f'{datetime.now().strftime("%m/%d/%Y, %H:%M:%S")} REGISTER {username}\n')
+            db.session.add(new_user)
+            db.session.commit()
 
-        return jsonify({'success': True, 'message': 'Registro exitoso'}), 200
+            return jsonify({
+                'success': True,
+                'message': 'Registro exitoso'
+            }), 201  # Created
+        except Exception as e:
+            # Manejar errores inesperados del servidor
+            db.session.rollback()
+            print(f"Error al registrar el usuario: {e}")
+            return jsonify({
+                'success': False,
+                'message': 'Ocurrió un error en el servidor. Por favor, inténtalo de nuevo más tarde.'
+            }), 500  # Internal Server Error
     else:
         return render_template('register.html')
 

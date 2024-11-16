@@ -1,17 +1,16 @@
+/* Estilos para el contenedor principal */
 body {
     font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
-    margin: 0;
-    padding: 0;
+    background-color: #f2f2f2;
 }
 
 .container {
-    width: 300px;
+    width: 400px;
     margin: 50px auto;
     padding: 20px;
-    background: white;
+    background-color: white;
     border-radius: 5px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
 
 h1 {
@@ -19,47 +18,98 @@ h1 {
     color: #333;
 }
 
+/* Estilos para el formulario */
 form {
     display: flex;
     flex-direction: column;
 }
 
 label {
+    margin-top: 10px;
     margin-bottom: 5px;
     color: #555;
 }
 
-input {
-    margin-bottom: 15px;
+input[type="text"],
+input[type="email"],
+input[type="password"] {
     padding: 10px;
     border: 1px solid #ccc;
-    border-radius: 3px;
-    font-size: 14px;
+    border-radius: 4px;
 }
 
-button {
+input[type="checkbox"] {
+    margin-top: 10px;
+}
+
+button[type="submit"] {
+    margin-top: 20px;
     padding: 10px;
-    background-color: #5cb85c;
-    border: none;
-    border-radius: 3px;
+    background-color: #007BFF;
     color: white;
-    font-size: 16px;
+    border: none;
+    border-radius: 4px;
     cursor: pointer;
 }
 
-button:hover {
-    background-color: #4cae4c;
+button[type="submit"]:hover {
+    background-color: #0056b3;
 }
 
+/* Estilos para el mensaje de resultado */
+.result-message {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.result-message.success {
+    color: green;
+}
+
+.result-message.error {
+    color: red;
+}
+
+.result-message .symbol {
+    font-size: 24px;
+}
+
+/* Estilos para el enlace de inicio de sesión */
 p {
     text-align: center;
-    color: #777;
+    margin-top: 20px;
 }
 
-a {
-    color: #5cb85c;
+p a {
+    color: #007BFF;
+    text-decoration: none;
 }
 
-a:hover {
+p a:hover {
     text-decoration: underline;
+}
+
+/* Estilos para mensajes de error */
+.error-message {
+    color: red;
+    font-size: 14px;
+    margin-top: 5px;
+}
+
+/* Estilos para la nota de campos obligatorios */
+.required-note {
+    margin-top: 10px;
+    font-size: 14px;
+    color: #555;
+}
+
+/* Estilos para las indicaciones de requisitos */
+#passwordRequirements {
+    font-size: 14px;
+    color: #555;
 }

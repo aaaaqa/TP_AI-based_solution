@@ -94,4 +94,3 @@ function clearMessage() {
     const messageDiv = document.getElementById('message');
     messageDiv.textContent = '';
 }
-
