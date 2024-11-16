@@ -122,3 +122,16 @@ h1 {
         width: 100%;
     }
 }
+
+#logoutButton {
+    background-color: #e74c3c;  /* Color rojo */
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+#logoutButton:hover {
+    background-color: #c0392b;
+}

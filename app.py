@@ -22,6 +22,7 @@ import re
 from flask import Flask, request, jsonify, render_template
 from sqlalchemy import or_, cast
 from sqlalchemy.types import String
+from flask import session, redirect, url_for
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Necesario para manejar sesiones y mensajes flash
@@ -242,6 +243,7 @@ def register():
 def workspace():
     # Renderiza la plantilla del área de trabajo
     return render_template('workspace.html', username=session.get('username'))
+
 
 @app.route('/api/get_cases')
 @login_required
@@ -635,9 +637,9 @@ def restore_original_image():
     return jsonify({'success': True, 'message': 'Imagen restaurada exitosamente'}), 200
 
 
-# Ruta para cerrar sesión
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
+    # Limpiar la sesión
     session.clear()
     return redirect(url_for('login'))
 

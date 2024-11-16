@@ -101,12 +101,20 @@ p a:hover {
     margin-top: 5px;
 }
 
-/* Estilos para la nota de campos obligatorios */
+/* Estilo para el asterisco de campos obligatorios */
+.required {
+    color: red;
+    font-weight: bold;
+}
+
+/* Ajuste de la nota de campos obligatorios */
 .required-note {
     margin-top: 10px;
     font-size: 14px;
-    color: #555;
+    color: #333;
+    text-align: center;
 }
+
 
 /* Estilos para las indicaciones de requisitos */
 #passwordRequirements {

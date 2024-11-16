@@ -9,6 +9,27 @@ document.addEventListener('DOMContentLoaded', function() {
 let cases = [];
 let filteredCases = [];
 
+// Evento para el botón de cierre de sesión
+document.getElementById('logoutButton').addEventListener('click', function() {
+    fetch('/logout', {
+        method: 'POST',
+        credentials: 'include'  // Incluir cookies en la solicitud
+    })
+    .then(response => {
+        if (response.ok) {
+            // Redirigir al usuario a la página de inicio de sesión
+            window.location.href = '/login';
+        } else {
+            alert('Error al cerrar sesión.');
+        }
+    })
+    .catch(error => {
+        console.error('Error al cerrar sesión:', error);
+        alert('Error al cerrar sesión.');
+    });
+});
+
+
 function fetchCases() {
     fetch('/api/get_cases')
         .then(response => response.json())
